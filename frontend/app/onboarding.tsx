@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { View, StyleSheet, TouchableWithoutFeedback, Keyboard } from "react-native";
 import { Provider as PaperProvider, ProgressBar } from "react-native-paper";
 import Step1 from "../components/onboarding/step1";
-import Step2 from "../components/onboarding/Step2";
+import Step2 from "../components/onboarding/step2";
 import Step3 from "../components/onboarding/step3";
 import { router } from "expo-router";
 
