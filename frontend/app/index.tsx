@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import {StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { TextInput, Button, Text, Surface, useTheme } from 'react-native-paper';
+import { router } from 'expo-router';
 
 export default function AuthScreen() {
+  const theme = useTheme();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const theme = useTheme();
 
   const handleSubmit = () => {
     if (isLogin) {
@@ -18,15 +19,16 @@ export default function AuthScreen() {
         return;
       }
       console.log('Signing up with:', email, password);
+      router.replace({ pathname: '/onboarding' } as any);
     }
   };
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.container}
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
-      <Surface style={[styles.card, { backgroundColor: theme.colors.elevation.level2 }]}>
+      <Surface style={[styles.card, { backgroundColor: theme.colors.surface }]}>
         <Text variant="headlineMedium" style={styles.title}>
           {isLogin ? 'Welcome Back 👋' : 'Create Account ✨'}
         </Text>
@@ -87,7 +89,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: 20,
-    backgroundColor: '#f9f9f9',
   },
   card: {
     padding: 24,
