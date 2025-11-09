@@ -9,6 +9,13 @@
 
 # COMMAND ----------
 
+dbutils.widgets.text("user_id", "")
+USER_ID = dbutils.widgets.get("user_id")
+
+print(f"Running projection for user_id: {USER_ID or 'ALL'}")
+
+# COMMAND ----------
+
 from pyspark.ml.feature import VectorAssembler
 from pyspark.ml.regression import LinearRegression
 from pyspark.sql import functions as F
@@ -17,8 +24,22 @@ from pyspark.sql.types import DateType
 import datetime
 import mlflow
 
+dbutils.widgets.text("user_id", "")
+USER_ID = dbutils.widgets.get("user_id")
 
-data = spark.table("raw.user.daily_footprint").withColumn("date", col("date").cast("date"))
+if not USER_ID:
+    raise ValueError("user_id parameter is required for this run")
+
+print(f"Running forecast for user_id: {USER_ID}")
+
+data = (
+    spark.table("raw.user.daily_footprint")
+    .withColumn("date", col("date").cast("date"))
+    .filter(col("user_id") == USER_ID)
+)
+
+if data.count() < 5:
+    raise ValueError(f"Not enough data to train for user_id {USER_ID}")
 
 assembler = VectorAssembler(
     inputCols=[
@@ -30,74 +51,61 @@ assembler = VectorAssembler(
     ],
     outputCol="features",
 )
+assembled = assembler.transform(data)
 
 mlflow.set_experiment("/Users/ajaypalsallh@gmail.com/user_emission_forecast")
-results = []
 
-for user in [r["user_id"] for r in data.select("user_id").distinct().collect()]:
-    df_user = data.filter(col("user_id") == user).orderBy("date")
-    if df_user.count() < 5:
-        print(f"Skipping {user}")
-        continue
+with mlflow.start_run(run_name=f"user_{USER_ID}"):
 
-    assembled = assembler.transform(df_user)
+    lr = LinearRegression(featuresCol="features", labelCol="total_emission_kgco2")
+    model = lr.fit(assembled)
 
-    with mlflow.start_run(run_name=f"user_{user}"):
-        lr = LinearRegression(featuresCol="features", labelCol="total_emission_kgco2")
-        model = lr.fit(assembled)
+    mlflow.log_param("user_id", USER_ID)
+    mlflow.log_metric("r2", model.summary.r2)
+    mlflow.log_metric("rmse", model.summary.rootMeanSquaredError)
 
-        mlflow.log_param("user_id", user)
-        mlflow.log_metric("r2", model.summary.r2)
-        mlflow.log_metric("rmse", model.summary.rootMeanSquaredError)
+    hist = (
+        model.transform(assembled)
+        .select("date", "user_id", col("prediction").alias("predicted_emission"))
+        .withColumn("is_forecast", lit(False))
+    )
 
-        hist_pred = (
-            model.transform(assembled)
-            .select("date", "user_id", col("prediction").alias("predicted_emission"))
-            .withColumn("is_forecast", lit(False))
-        )
+    last_date = data.select(spark_max("date")).first()[0]
+    pattern = data.orderBy(F.desc("date")).limit(7).toPandas()
 
-        last_date = df_user.select(spark_max("date")).first()[0]
-        recent_pattern = df_user.orderBy(F.desc("date")).limit(7).toPandas()
+    future_rows = []
+    for i in range(1, 31):
+        base = pattern.iloc[i % len(pattern)]
+        future_rows.append((
+            last_date + datetime.timedelta(days=i),
+            USER_ID,
+            float(base.transport_weight),
+            float(base.energy_weight),
+            float(base.diet_weight),
+            float(base.recycling_modifier),
+            float(base.offset_modifier),
+        ))
 
-        future_rows = []
-        for i in range(1, 31):
-            base = recent_pattern.iloc[i % len(recent_pattern)]
-            future_rows.append((
-                last_date + datetime.timedelta(days=i),
-                user,
-                float(base.transport_weight),
-                float(base.energy_weight),
-                float(base.diet_weight),
-                float(base.recycling_modifier),
-                float(base.offset_modifier),
-            ))
+    future_df = spark.createDataFrame(
+        future_rows,
+        ["date", "user_id", "transport_weight", "energy_weight",
+         "diet_weight", "recycling_modifier", "offset_modifier"]
+    )
 
-        future_df = spark.createDataFrame(
-            future_rows,
-            ["date", "user_id", "transport_weight", "energy_weight",
-             "diet_weight", "recycling_modifier", "offset_modifier"]
-        )
+    future_assembled = assembler.transform(future_df)
+    forecast = (
+        model.transform(future_assembled)
+        .select("date", "user_id", col("prediction").alias("predicted_emission"))
+        .withColumn("is_forecast", lit(True))
+    )
 
-        future_assembled = assembler.transform(future_df)
-        forecast = (
-            model.transform(future_assembled)
-            .select("date", "user_id", col("prediction").alias("predicted_emission"))
-            .withColumn("is_forecast", lit(True))
-        )
+    combined = hist.unionByName(forecast)
 
-        combined = hist_pred.unionByName(forecast)
-        results.append(combined)
+(combined
+ .select("date", "user_id", "predicted_emission", "is_forecast")
+ .write
+ .option("replaceWhere", f"user_id = '{USER_ID}'")  
+ .mode("overwrite")
+ .saveAsTable("clean.user.daily_footprint_projected"))
 
-if not results:
-    raise ValueError("No results computed")
-
-merged = results[0]
-for nxt in results[1:]:
-    merged = merged.unionByName(nxt)
-
-final_output = merged.select("date", "user_id", "predicted_emission", "is_forecast")
-final_output.write.option("overwriteSchema","true").mode("overwrite").saveAsTable(
-    "clean.user.daily_footprint_projected"
-)
-
-display(final_output)
+display(combined)
