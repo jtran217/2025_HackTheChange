@@ -21,3 +21,17 @@ SELECT * FROM top_countries
 UNION ALL
 SELECT * FROM canada_row
 """ 
+
+HABITS_QUERY = """
+INSERT INTO raw.user.daily_footprint (
+    user_id,
+    date,
+    transport_weight,
+    energy_weight,
+    diet_weight,
+    recycling_modifier,
+    offset_modifier,
+    total_emission_kgco2
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+"""
