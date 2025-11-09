@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, StyleSheet, ScrollView } from "react-native";
+import { View, StyleSheet, ScrollView, Dimensions } from "react-native";
 import {
   Text,
   Button,
@@ -12,6 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import SurveyModal from "../../components/ui/surveyModal";
 import { SurveyQuestionOption } from "../../types/survey";
 import { supabase } from "@/lib/supabase";
+
 const dummyData = {
   user: {
     name: "Johnny",
@@ -30,21 +31,38 @@ const dummyData = {
     { date: "Nov 8", co2: 12.8 },
   ],
 };
+type RecentLog = {
+  date: string;
+  predicted_emission: number;
+};
+type PredictedLog = {
+  date: string;
+  predicted_emission: number;
+  is_forecast?: boolean | null;
+};
 
 export default function Dashboard() {
   const [visible, setVisible] = useState(false);
+  const [recentLogs, setRecentLogs] = useState<RecentLog[]>([]);
+
   const [result, setResult] = useState<{
     userId: string;
     answers: Record<string, SurveyQuestionOption>;
     total: number;
     date: string;
   } | null>(null);
-
+  const [predictedLogs, setPredictedLogs] = useState<PredictedLog[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
   const toggleSurvey = () => setVisible(!visible);
   const [uploading, setUploading] = useState(false);
   const [hasLoggedToday, setHasLoggedToday] = useState(false);
-  const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://172.20.10.3:3000";
+  const API_URL = process.env.EXPO_PUBLIC_API_URL;
+  const [todayScore, setTodayScore] = useState(0);
+  const formatKg = new Intl.NumberFormat(undefined, {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
+
   useEffect(() => {
     supabase.auth
       .getUser()
@@ -53,7 +71,6 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!result) return;
-
     (async () => {
       try {
         setUploading(true);
@@ -85,6 +102,82 @@ export default function Dashboard() {
     })();
   }, [result]);
 
+  useEffect(() => {
+    if (!userId) return;
+    const controller = new AbortController();
+
+    (async () => {
+      try {
+        const res = await fetch(
+          `${API_URL}/userEmissions/today?user_id=${encodeURIComponent(
+            userId
+          )}`,
+          { signal: controller.signal }
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const payload = await res.json();
+        setTodayScore(payload.total_emission_kgco2 ?? 0);
+        setHasLoggedToday(!!payload);
+      } catch (err) {
+        if ((err as Error).name !== "AbortError") {
+          setTodayScore(0);
+        }
+      }
+    })();
+
+    return () => controller.abort();
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+    const controller = new AbortController();
+
+    (async () => {
+      try {
+        const res = await fetch(
+          `${API_URL}/userEmissions/recent?user_id=${encodeURIComponent(
+            userId
+          )}`,
+          { signal: controller.signal }
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const payload = (await res.json()) as RecentLog[];
+        setRecentLogs(payload);
+      } catch (err) {
+        if ((err as Error).name !== "AbortError") {
+          console.error("Failed to load recent logs", err);
+          setRecentLogs([]);
+        }
+      }
+    })();
+
+    return () => controller.abort();
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+    const controller = new AbortController();
+
+    fetch(`${API_URL}/userEmissions?user_id=${encodeURIComponent(userId)}`, {
+      signal: controller.signal,
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json() as Promise<PredictedLog[]>;
+      })
+      .then((rows) => {
+        setPredictedLogs(rows.filter((row) => row.is_forecast));
+      })
+      .catch((err) => {
+        if ((err as Error).name !== "AbortError") {
+          console.error("Failed to load predicted logs", err);
+          setPredictedLogs([]);
+        }
+      });
+
+    return () => controller.abort();
+  }, [userId, API_URL]);
+
   return (
     <SafeAreaView style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={styles.container}>
@@ -98,28 +191,12 @@ export default function Dashboard() {
 
         <Surface style={styles.card}>
           <Text variant="titleMedium">Today's Carbon Score</Text>
-          <Text style={styles.co2Value}>{dummyData.today.co2} kg CO₂</Text>
-          <Text
-            style={{
-              color: dummyData.today.comparedToAvg < 0 ? "#4CAF50" : "#F44336",
-              marginBottom: 8,
-            }}
-          >
-            {dummyData.today.comparedToAvg < 0
-              ? `${Math.abs(dummyData.today.comparedToAvg)}% below average 🎉`
-              : `${dummyData.today.comparedToAvg}% above average 😬`}
-          </Text>
-
-          <ProgressBar
-            progress={dummyData.today.co2 / 20}
-            color={dummyData.today.comparedToAvg < 0 ? "#4CAF50" : "#F44336"}
-            style={{ height: 10, borderRadius: 8 }}
-          />
+          <Text style={styles.co2Value}>{todayScore} kg CO₂</Text>
         </Surface>
         <Card style={styles.card}>
           <Card.Title title="Recent CO₂ Logs" />
           <Card.Content>
-            {dummyData.recentLogs.map((log) => (
+            {recentLogs.map((log) => (
               <View
                 key={log.date}
                 style={{
@@ -129,17 +206,28 @@ export default function Dashboard() {
                 }}
               >
                 <Text>{log.date}</Text>
-                <Text>{log.co2} kg</Text>
+                <Text>{formatKg.format(log.predicted_emission)} kg</Text>
               </View>
             ))}
           </Card.Content>
         </Card>
-
-        <Surface style={styles.card}>
-          <Text variant="titleMedium">Weekly Average</Text>
-          <Text style={styles.avgValue}>{dummyData.user.avgScore} kg CO₂</Text>
-          <Text style={{ color: "#888" }}>Last 7-day average</Text>
-        </Surface>
+        <Card style={styles.card}>
+          <Card.Title title="Predicted CO₂ Logs" />
+          <Card.Content>
+            {predictedLogs.length === 0 ? (
+              <Text style={{ color: "#888", textAlign: "center" }}>
+                No forecast entries yet.
+              </Text>
+            ) : (
+              predictedLogs.map((log, idx) => (
+                <View key={`${log.date}-${idx}`} style={styles.predictedRow}>
+                  <Text>{log.date}</Text>
+                  <Text>{formatKg.format(log.predicted_emission)} kg</Text>
+                </View>
+              ))
+            )}
+          </Card.Content>
+        </Card>
 
         <Button
           mode="contained"
@@ -174,6 +262,7 @@ export default function Dashboard() {
               ...data,
               date: new Date().toISOString().slice(0, 10),
             });
+            setTodayScore(data.total);
           }}
         />
       </ScrollView>
@@ -190,6 +279,11 @@ const styles = StyleSheet.create({
   title: {
     textAlign: "center",
     marginBottom: 4,
+  },
+  predictedRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginVertical: 4,
   },
   subtitle: {
     textAlign: "center",
