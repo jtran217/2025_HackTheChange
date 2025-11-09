@@ -19,7 +19,7 @@ export default function AuthScreen() {
         return;
       }
       console.log('Signing up with:', email, password);
-      router.replace({ pathname: '/onboarding' } as any);
+      router.replace({ pathname: '/(tabs)' } as any);
     }
   };
 
