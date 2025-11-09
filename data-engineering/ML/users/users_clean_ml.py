@@ -16,6 +16,8 @@ print(f"Running projection for user_id: {USER_ID or 'ALL'}")
 
 # COMMAND ----------
 
+from pyspark.sql.functions import col
+
 data_count = (
     spark.table("raw.user.daily_footprint")
     .filter(col("user_id") == USER_ID)
