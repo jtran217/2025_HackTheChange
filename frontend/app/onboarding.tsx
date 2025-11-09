@@ -1,10 +1,17 @@
 import React, { useState } from "react";
-import { View, StyleSheet, TouchableWithoutFeedback, Keyboard } from "react-native";
-import { Provider as PaperProvider, ProgressBar } from "react-native-paper";
+import {
+  View,
+  StyleSheet,
+  TouchableWithoutFeedback,
+  Keyboard,
+  Alert,
+} from "react-native";
+import { ProgressBar } from "react-native-paper";
 import Step1 from "../components/onboarding/step1";
 import Step2 from "../components/onboarding/step2";
 import Step3 from "../components/onboarding/step3";
 import { router } from "expo-router";
+import { supabase } from "../lib/supabase";
 
 export default function Onboarding() {
   const [step, setStep] = useState(1);
@@ -19,6 +26,7 @@ export default function Onboarding() {
     motivation: "",
     focusArea: "",
   });
+  const [submitting, setSubmitting] = useState(false);
 
   const handleChange = (key: string, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -26,9 +34,54 @@ export default function Onboarding() {
   const nextStep = () => setStep((prev) => prev + 1);
   const prevStep = () => setStep((prev) => prev - 1);
 
-  const handleFinish = () => {
-    console.log("Onboarding complete", form);
-    router.replace("/(tabs)");
+  const handleFinish = async () => {
+    if (submitting) {
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+      if (userError) {
+        throw userError;
+      }
+      if (!user) {
+        throw new Error("No authenticated user found.");
+      }
+      const householdNum = Number.parseInt(form.householdSize, 10);
+      const weekDistance = Number.parseFloat(form.carDistance);
+      const payload = {
+        id: user.id,
+        name: form.name || null,
+        location: form.location || null,
+        household_num: Number.isFinite(householdNum) ? householdNum : null,
+        house_type: form.homeType || null,
+        mode_transport: form.transport || null,
+        week_distance: Number.isFinite(weekDistance) ? weekDistance : null,
+        diet_type: form.diet || null,
+        main_motivation: form.motivation || null,
+        main_focus: form.focusArea || null,
+      };
+
+      const { error: upsertError } = await supabase
+        .from("carbon_assessment")
+        .upsert(payload, { onConflict: "id" });
+
+      if (upsertError) {
+        throw upsertError;
+      }
+
+      router.replace("/(tabs)");
+    } catch (error) {
+      console.error("Failed to save onboarding progress", error);
+      const message =
+        error instanceof Error ? error.message : "Something went wrong.";
+      Alert.alert("Onboarding", message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const progress = step / 3;
@@ -54,6 +107,7 @@ export default function Onboarding() {
             onChange={handleChange}
             onBack={prevStep}
             onFinish={handleFinish}
+            isSubmitting={submitting}
           />
         )}
       </View>
