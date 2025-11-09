@@ -2,6 +2,7 @@ import os
 from typing import Dict, List
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, field_validator
 from databricks import sql
 from dotenv import load_dotenv
 from scripts.queries import EMISSIONS_QUERY, USER_ALL_EMISSIONS
@@ -63,8 +64,32 @@ def userEmissions(user_id: str = Query(..., description="User ID to filter emiss
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
-
+@app.post("/carbonLogs")
+def create_carbon_log(payload: CarbonLogPayload):
+    log_date = payload.date or date_type.today()
+    try:
+        with get_connection() as conn, conn.cursor() as cursor:
+            cursor.execute(
+                HABITS_QUERY,
+                (
+                    payload.user_id,
+                    log_date,
+                    payload.transport_weight,
+                    payload.energy_weight,
+                    payload.diet_weight,
+                    payload.recycling_modifier,
+                    payload.offset_modifier,
+                    payload.total_emission_kgco2,
+                ),
+            )
+        trigger_forecast(payload.user_id)
+        return {"status": "ok"}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+        
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run("main:app", host="0.0.0.0", port=3000, reload=True)
+
+
+

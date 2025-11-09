@@ -25,9 +25,7 @@ export default function AuthScreen() {
       alert('Passwords do not match.');
       return;
     }
-
     setLoading(true);
-
     try {
       if (isLogin) {
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -35,7 +33,6 @@ export default function AuthScreen() {
           password,
         });
         if (error) throw error;
-        console.log('Logged in:', data.user);
         router.replace('/(tabs)');
       } else {
         const { data, error } = await supabase.auth.signUp({
@@ -43,7 +40,6 @@ export default function AuthScreen() {
           password,
         });
         if (error) throw error;
-        console.log('User signed up:', data.user);
         router.replace('/onboarding');
       }
     } catch (err: any) {
