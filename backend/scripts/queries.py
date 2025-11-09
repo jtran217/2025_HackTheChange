@@ -20,4 +20,13 @@ canada_row AS (
 SELECT * FROM top_countries
 UNION ALL
 SELECT * FROM canada_row
-""" 
+"""
+
+
+def USER_ALL_EMISSIONS():
+    return """
+        SELECT *
+        FROM clean.user.daily_footprint_projected
+        WHERE user_id = %s
+        ORDER BY date
+    """
