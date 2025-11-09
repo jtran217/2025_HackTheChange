@@ -1,5 +1,90 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
 
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+*.egg-info/
+.installed.cfg
+*.egg
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Translations
+*.mo
+*.pot
+
+# Django / Flask / general
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+instance/
+.webassets-cache
+staticfiles/
+
+# Scrapy / Sphinx / PyBuilder
+.scrapy
+docs/_build/
+target/
+
+# Jupyter / IPython
+.ipynb_checkpoints
+profile_default/
+ipython_config.py
+
+# Environment managers / virtualenvs
+.python-version
+Pipfile.lock
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# IDE / editor / tooling
+.spyderproject
+.spyproject
+.ropeproject
+
+# Type checkers / caches
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+
+# Misc
+celerybeat-schedule
 # dependencies
 node_modules/
 
