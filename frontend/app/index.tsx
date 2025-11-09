@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
-import { TextInput, Button, Text, Surface, useTheme } from 'react-native-paper';
+import { TextInput, Button, Text, Surface, useTheme, ActivityIndicator } from 'react-native-paper';
 import { router } from 'expo-router';
+import { supabase } from '../lib/supabase'; 
 
 export default function AuthScreen() {
   const theme = useTheme();
@@ -9,17 +10,47 @@ export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = () => {
-    if (isLogin) {
-      console.log('Logging in with:', email, password);
-    } else {
-      if (password !== confirmPassword) {
-        alert('Passwords do not match');
-        return;
+  const handleSubmit = async () => {
+    setError('');
+
+    if (!email || !password) {
+      alert('Please enter your email and password.');
+      return;
+    }
+
+    if (!isLogin && password !== confirmPassword) {
+      alert('Passwords do not match.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      if (isLogin) {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (error) throw error;
+        console.log('Logged in:', data.user);
+        router.replace('/(tabs)');
+      } else {
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+        });
+        if (error) throw error;
+        console.log('User signed up:', data.user);
+        router.replace('/onboarding');
       }
-      console.log('Signing up with:', email, password);
-      router.replace({ pathname: '/(tabs)' } as any);
+    } catch (err: any) {
+      setError(err.message);
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -46,9 +77,9 @@ export default function AuthScreen() {
         <TextInput
           label="Password"
           mode="outlined"
+          secureTextEntry
           value={password}
           onChangeText={setPassword}
-          secureTextEntry
           style={styles.input}
         />
 
@@ -56,28 +87,40 @@ export default function AuthScreen() {
           <TextInput
             label="Confirm Password"
             mode="outlined"
+            secureTextEntry
             value={confirmPassword}
             onChangeText={setConfirmPassword}
-            secureTextEntry
             style={styles.input}
           />
         )}
 
-        <Button
-          mode="contained"
-          onPress={handleSubmit}
-          style={styles.button}
-          contentStyle={{ paddingVertical: 8 }}
-        >
-          {isLogin ? 'Login' : 'Sign Up'}
-        </Button>
+        {error ? (
+          <Text style={{ color: 'red', textAlign: 'center', marginBottom: 10 }}>
+            {error}
+          </Text>
+        ) : null}
+
+        {loading ? (
+          <ActivityIndicator animating={true} />
+        ) : (
+          <Button
+            mode="contained"
+            onPress={handleSubmit}
+            style={styles.button}
+            contentStyle={{ paddingVertical: 8 }}
+          >
+            {isLogin ? 'Login' : 'Sign Up'}
+          </Button>
+        )}
 
         <Button
           mode="text"
           onPress={() => setIsLogin(!isLogin)}
           style={styles.switchButton}
         >
-          {isLogin ? "Don't have an account? Sign Up" : 'Already have an account? Login'}
+          {isLogin
+            ? "Don't have an account? Sign Up"
+            : 'Already have an account? Login'}
         </Button>
       </Surface>
     </KeyboardAvoidingView>

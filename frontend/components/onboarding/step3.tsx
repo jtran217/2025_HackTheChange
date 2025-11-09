@@ -2,8 +2,16 @@ import React, { useState } from "react";
 import { View, StyleSheet } from "react-native";
 import { Text, Button, Menu } from "react-native-paper";
 
+type Step3Props = {
+  form: any;
+  onChange: any;
+  onBack: any;
+  onFinish: any;
+  isSubmitting?: boolean;
+};
+
 // Come back to fix "any" type when time available.
-export default function Step3({ form, onChange, onBack, onFinish }:{form:any, onChange:any, onBack:any, onFinish:any}) {
+export default function Step3({ form, onChange, onBack, onFinish, isSubmitting = false }: Step3Props) {
   const [motivationMenuVisible, setMotivationMenuVisible] = useState(false);
   const [focusMenuVisible, setFocusMenuVisible] = useState(false);
 
@@ -24,8 +32,6 @@ export default function Step3({ form, onChange, onBack, onFinish }:{form:any, on
       <Text variant="headlineMedium" style={styles.title}>
         Set your goals 
       </Text>
-
-      {/* Motivation dropdown */}
       <Menu
         visible={motivationMenuVisible}
         onDismiss={() => setMotivationMenuVisible(false)}
@@ -44,8 +50,6 @@ export default function Step3({ form, onChange, onBack, onFinish }:{form:any, on
         <Menu.Item onPress={() => handleSelectMotivation("Competing with friends")} title="Competing with friends" />
         <Menu.Item onPress={() => handleSelectMotivation("Learning something new")} title="Learning something new" />
       </Menu>
-
-      {/* Focus area dropdown */}
       <Menu
         visible={focusMenuVisible}
         onDismiss={() => setFocusMenuVisible(false)}
@@ -69,7 +73,13 @@ export default function Step3({ form, onChange, onBack, onFinish }:{form:any, on
         <Button mode="outlined" onPress={onBack} style={styles.half}>
           Back
         </Button>
-        <Button mode="contained" onPress={onFinish} style={styles.half} disabled={!ready}>
+        <Button
+          mode="contained"
+          onPress={onFinish}
+          style={styles.half}
+          disabled={!ready || isSubmitting}
+          loading={isSubmitting}
+        >
           Finish
         </Button>
       </View>
