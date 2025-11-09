@@ -35,7 +35,7 @@ INSERT INTO raw.user.daily_footprint (
 )
 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 """
-"""
+
 
 
 def USER_ALL_EMISSIONS():
