@@ -16,6 +16,19 @@ print(f"Running projection for user_id: {USER_ID or 'ALL'}")
 
 # COMMAND ----------
 
+data_count = (
+    spark.table("raw.user.daily_footprint")
+    .filter(col("user_id") == USER_ID)
+    .count()
+    if USER_ID else None
+)
+
+if USER_ID and (data_count is None or data_count < 5):
+    print(f"Not enough data to train for user_id {USER_ID}. Exiting program.")
+    dbutils.notebook.exit("Insufficient data for user_id")
+
+# COMMAND ----------
+
 from pyspark.ml.feature import VectorAssembler
 from pyspark.ml.regression import LinearRegression
 from pyspark.sql import functions as F
