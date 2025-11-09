@@ -1,5 +1,5 @@
 import os
-from typing import Dict, List,Optional
+from typing import Dict, List,Optional, Any
 from datetime import date as date_type
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -75,7 +75,9 @@ def userEmissions(user_id: str = Query(..., description="User ID to filter emiss
             SELECT *
             FROM clean.user.daily_footprint_projected
             WHERE user_id = '{safe_user_id}'
-            ORDER BY date
+            AND is_forecast = true
+            AND date > current_date()
+            AND date <= date_add(current_date(), 5)
         """
         with get_connection() as conn, conn.cursor() as cursor:
             cursor.execute(query)
@@ -108,6 +110,50 @@ def create_carbon_log(payload: CarbonLogPayload):
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
         
+
+@app.get("/userEmissions/today")
+def today_emission(user_id: str = Query(..., description="Supabase user id")) -> Dict[str, Any]:
+    log_date = date_type.today()
+    try:
+        with get_connection() as conn, conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT total_emission_kgco2
+                FROM raw.user.daily_footprint
+                WHERE user_id = ? AND date = ?
+                LIMIT 1
+                """,
+                (user_id, log_date),
+            )
+            row = cursor.fetchone()
+        return {
+            "date": log_date.isoformat(),
+            "total_emission_kgco2": float(row[0]) if row else 0.0,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    
+@app.get("/userEmissions/recent")
+def recent_emissions(user_id: str = Query(..., description="Supabase user id")) -> List[Dict[str, Any]]:
+    try:
+        with get_connection() as conn, conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT *
+                FROM clean.user.daily_footprint_projected
+                WHERE user_id = ?
+                    AND COALESCE(is_forecast, false) = false
+                    AND date < current_date()
+                ORDER BY date DESC
+                LIMIT 5
+                """,
+                (user_id,),
+            )
+            columns = [c[0] for c in cursor.description]
+            return [dict(zip(columns, row)) for row in cursor.fetchall()]
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=3000, reload=True)
