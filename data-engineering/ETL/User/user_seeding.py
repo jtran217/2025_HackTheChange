@@ -21,15 +21,11 @@ from datetime import datetime, timedelta
 
 spark = SparkSession.builder.getOrCreate()
 
-# ---------------------------------------------
-# CONFIG
-# ---------------------------------------------
-users = ["aj001"]
+users = ["ID"]
 start_date = datetime(2025, 8, 1)
 end_date = datetime(2025, 10, 31)  # ~3 months of data
 total_days = (end_date - start_date).days + 1
 
-# This reflects the raw numeric weights the front end would send
 possible_transport_weights = [5.0, 2.5, 1.8, 0.0, 0.2]
 possible_energy_weights = [3.0, 2.0, 1.0, 0.5]
 possible_diet_weights = [4.0, 2.5, 1.5, 1.0]
@@ -38,9 +34,6 @@ possible_offset_modifiers = [0.0, -1.0, -0.7, -1.5]
 
 records = []
 
-# ---------------------------------------------
-# GENERATE SYNTHETIC DATA
-# ---------------------------------------------
 for user in users:
     for i in range(total_days):
         date = start_date + timedelta(days=i)
@@ -73,13 +66,9 @@ for user in users:
             }
         )
 
-# ---------------------------------------------
-# CONVERT TO SPARK + WRITE
-# ---------------------------------------------
 pdf = pd.DataFrame(records)
 df = spark.createDataFrame(pdf)
 
-display(df.limit(10))
+display(df)
 
-# Append to your Databricks Delta table
-df.write.option("overwriteSchema", True).mode("overwrite").saveAsTable("raw.user.daily_footprint")
+df.write.mode("append").saveAsTable("raw.user.daily_footprint")
